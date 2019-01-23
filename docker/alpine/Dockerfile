@@ -42,6 +42,40 @@ RUN set -ex \
       | sort -u) \
  && rm -rf /tmp/repo
 
+RUN set -ex \
+ # Build environment setup
+ && apk add --no-cache --virtual .build-deps \
+      build-base \
+      autoconf \
+      automake \
+      xmlto \
+      asciidoc \
+      libev-dev \
+      git \
+      c-ares-dev \
+      libev-dev \
+      libtool \
+      libsodium-dev \
+      linux-headers \
+      mbedtls-dev \
+      pcre-dev \
+ # Build & install
+ && mkdir /tmp/obfs-repo && cd /tmp/obfs-repo \
+ && git clone https://github.com/shadowsocks/simple-obfs.git --depth=1 \
+ && cd simple-obfs \
+ && git submodule update --init --recursive \
+ && ./autogen.sh \
+ && ./configure && make \
+ && make install \
+ && apk del .build-deps \
+ # Runtime dependencies setup
+ && apk add --no-cache \
+      rng-tools \
+      $(scanelf --needed --nobanner /usr/bin/obfs-* \
+      | awk '{ gsub(/,/, "\nso:", $2); print "so:" $2 }' \
+      | sort -u) \
+ && rm -rf /tmp/obfs-repo
+
 USER nobody
 
 CMD exec ss-server \
@@ -54,4 +88,5 @@ CMD exec ss-server \
       --fast-open \
       -d $DNS_ADDRS \
       -u \
+      --plugin obfs-server --plugin-opts "obfs=http" \
       $ARGS
